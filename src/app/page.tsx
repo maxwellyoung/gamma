@@ -1,32 +1,34 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { useState, useEffect } from "react";
+import {
+  motion,
+  AnimatePresence,
+  useAnimation,
+  useMotionValue,
+  useTransform,
+  animate,
+} from "framer-motion";
 import {
   Play,
   Pause,
   SkipForward,
-  Volume2,
   ChevronLeft,
-  Moon,
   Sun,
+  Moon,
   Wind,
   Activity,
-  LucideIcon,
 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 
-interface Meditation {
+interface MeditationSession {
   id: number;
   title: string;
   duration: number;
   type: string;
-  icon: LucideIcon;
+  icon: React.ElementType;
 }
 
-const meditations: Meditation[] = [
+const meditations: MeditationSession[] = [
   {
     id: 1,
     title: "Morning Calm",
@@ -85,57 +87,71 @@ const meditations: Meditation[] = [
   },
 ];
 
-interface BreathingVisualProps {
-  isBreathing: boolean;
-  duration: number;
-}
+const BreathingVisual: React.FC<{ isPlaying: boolean }> = ({ isPlaying }) => {
+  const circleAnimation = useAnimation();
+  const breathProgress = useMotionValue(0);
+  const breathPhase = useTransform(
+    breathProgress,
+    [0, 0.33, 0.66, 1],
+    ["Inhale...", "Hold...", "Exhale...", "Inhale..."]
+  );
 
-const BreathingVisual: React.FC<BreathingVisualProps> = ({
-  isBreathing,
-  duration,
-}) => {
-  const breatheIn = { scale: 1.5, transition: { duration: duration / 2 } };
-  const breatheOut = { scale: 1, transition: { duration: duration / 2 } };
+  useEffect(() => {
+    if (isPlaying) {
+      circleAnimation.start({
+        scale: [1, 1.2, 1.2, 1],
+        opacity: [0.7, 1, 1, 0.7],
+        transition: {
+          duration: 8,
+          times: [0, 0.25, 0.75, 1],
+          repeat: Infinity,
+          ease: "easeInOut",
+        },
+      });
+      breathProgress.set(0);
+      animate(breathProgress, 1, {
+        duration: 8,
+        repeat: Infinity,
+        ease: "linear",
+      });
+    } else {
+      circleAnimation.stop();
+      breathProgress.stop();
+    }
+  }, [isPlaying, circleAnimation, breathProgress]);
 
   return (
-    <motion.div
-      className="w-16 h-16 bg-indigo-500 rounded-full mx-auto mb-8"
-      animate={isBreathing ? breatheIn : breatheOut}
-    />
+    <div className="relative w-48 h-48 mx-auto mb-8">
+      <motion.div
+        className="absolute inset-0 bg-gray-200 rounded-full"
+        animate={circleAnimation}
+      />
+      <motion.div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm font-light">
+        <motion.span>{breathPhase}</motion.span>
+      </motion.div>
+    </div>
   );
 };
 
 export default function Component() {
-  const [activeSession, setActiveSession] = useState<Meditation | null>(null);
+  const [activeSession, setActiveSession] = useState<MeditationSession | null>(
+    null
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
-  const [volume, setVolume] = useState(0.5);
   const [selectedType, setSelectedType] = useState("All");
-  const [isBreathing, setIsBreathing] = useState(false);
-  const controls = useAnimation();
-  const sessionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
     if (isPlaying && timeRemaining > 0) {
       interval = setInterval(() => {
         setTimeRemaining((time) => time - 1);
-        if (activeSession?.type === "Breathing") {
-          setIsBreathing((prev) => !prev);
-        }
       }, 1000);
     } else if (timeRemaining === 0) {
       setIsPlaying(false);
-      controls.start({ opacity: 0, y: -20 });
     }
     return () => clearInterval(interval);
-  }, [isPlaying, timeRemaining, activeSession, controls]);
-
-  useEffect(() => {
-    if (sessionRef.current) {
-      sessionRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [activeSession]);
+  }, [isPlaying, timeRemaining]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -143,11 +159,10 @@ export default function Component() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleSessionStart = (session: Meditation) => {
+  const handleSessionStart = (session: MeditationSession) => {
     setActiveSession(session);
     setTimeRemaining(session.duration);
     setIsPlaying(true);
-    controls.start({ opacity: 1, y: 0 });
   };
 
   const handlePlayPause = () => {
@@ -157,10 +172,6 @@ export default function Component() {
   const handleSkip = () => {
     setTimeRemaining(0);
     setIsPlaying(false);
-  };
-
-  const handleVolumeChange = (newVolume: number[]) => {
-    setVolume(newVolume[0]);
   };
 
   const handleBack = () => {
@@ -174,14 +185,15 @@ export default function Component() {
       : meditations.filter((m) => m.type === selectedType);
 
   return (
-    <div className="min-h-screen bg-white text-black flex flex-col items-center justify-start p-8 font-mono overflow-x-hidden">
+    <div className="min-h-screen bg-white text-gray-800 flex flex-col items-center justify-start p-8 font-sans">
       <motion.h1
-        className="text-4xl mb-12 mt-8"
+        className="text-4xl mb-12 font-light"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
+        whileHover={{ scale: 1.05 }}
       >
-        Gamma: Mindfulness App
+        mindful
       </motion.h1>
 
       <div className="w-full max-w-md">
@@ -189,96 +201,130 @@ export default function Component() {
           {!activeSession ? (
             <motion.div
               key="session-list"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="flex justify-between mb-6">
-                <h2 className="text-2xl">Choose a session:</h2>
-                <select
+              <motion.div
+                className="flex justify-between items-center mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                <h2 className="text-2xl font-light">Choose a session:</h2>
+                <motion.select
                   value={selectedType}
                   onChange={(e) => setSelectedType(e.target.value)}
-                  className="bg-white border border-gray-300 rounded-md px-2 py-1"
+                  className="bg-white border border-gray-200 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                 >
                   <option value="All">All</option>
                   <option value="Meditation">Meditation</option>
                   <option value="Breathing">Breathing</option>
                   <option value="Body Scan">Body Scan</option>
-                </select>
-              </div>
-              {filteredMeditations.map((meditation) => (
-                <Button
+                </motion.select>
+              </motion.div>
+              {filteredMeditations.map((meditation, index) => (
+                <motion.button
                   key={meditation.id}
                   onClick={() => handleSessionStart(meditation)}
-                  className="w-full mb-4 py-6 text-left justify-start text-lg hover:bg-indigo-50 transition-colors group"
-                  variant="outline"
+                  className="w-full mb-4 py-4 px-6 text-left text-lg bg-gray-50 hover:bg-gray-100 transition-colors rounded-lg flex items-center"
+                  whileHover={{ x: 5, backgroundColor: "#f3f4f6" }}
+                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
                 >
-                  <meditation.icon className="mr-4 text-indigo-500 group-hover:text-indigo-600 transition-colors" />
-                  <span className="flex-grow">{meditation.title}</span>
-                  <span className="text-sm text-gray-500">
-                    {formatTime(meditation.duration)} | {meditation.type}
+                  <meditation.icon className="mr-4 text-gray-500" size={20} />
+                  <span className="font-medium flex-grow">
+                    {meditation.title}
                   </span>
-                </Button>
+                  <span className="text-sm text-gray-500">
+                    {formatTime(meditation.duration)}
+                  </span>
+                </motion.button>
               ))}
             </motion.div>
           ) : (
             <motion.div
-              ref={sessionRef}
               key="active-session"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="text-center relative pb-16"
+              className="text-center relative"
             >
-              <Button
+              <motion.button
                 onClick={handleBack}
-                variant="ghost"
-                className="absolute top-0 left-0"
+                className="absolute top-0 left-0 p-2 text-gray-500 hover:text-gray-700"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
               >
                 <ChevronLeft size={24} />
-                Back
-              </Button>
-              <h2 className="text-2xl mb-2">{activeSession.title}</h2>
-              <p className="text-sm text-gray-500 mb-6">{activeSession.type}</p>
+              </motion.button>
+              <motion.h2
+                className="text-2xl mb-2 font-light"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {activeSession.title}
+              </motion.h2>
+              <motion.p
+                className="text-sm text-gray-500 mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                {activeSession.type}
+              </motion.p>
               {activeSession.type === "Breathing" && (
-                <BreathingVisual isBreathing={isBreathing} duration={4} />
+                <BreathingVisual isPlaying={isPlaying} />
               )}
-              <motion.div className="text-6xl mb-8" animate={controls}>
+              <motion.div
+                className="text-6xl mb-8 font-light"
+                key={timeRemaining}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
                 {formatTime(timeRemaining)}
               </motion.div>
-              <Progress
-                value={(1 - timeRemaining / activeSession.duration) * 100}
-                className="mb-8"
-              />
+              <motion.div
+                className="w-full h-1 bg-gray-200 mb-8 rounded-full overflow-hidden"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <motion.div
+                  className="h-full bg-gray-500"
+                  style={{
+                    width: `${
+                      (1 - timeRemaining / activeSession.duration) * 100
+                    }%`,
+                    transition: "width 1s linear",
+                  }}
+                />
+              </motion.div>
               <div className="flex justify-center space-x-4 mb-8">
-                <Button
+                <motion.button
                   onClick={handlePlayPause}
-                  size="icon"
-                  variant="outline"
-                  className="w-16 h-16 rounded-full"
+                  className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-full"
+                  whileHover={{ scale: 1.1, backgroundColor: "#e5e7eb" }}
+                  whileTap={{ scale: 0.9 }}
                 >
                   {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                </Button>
-                <Button
+                </motion.button>
+                <motion.button
                   onClick={handleSkip}
-                  size="icon"
-                  variant="outline"
-                  className="w-16 h-16 rounded-full"
+                  className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded-full"
+                  whileHover={{ scale: 1.1, backgroundColor: "#e5e7eb" }}
+                  whileTap={{ scale: 0.9 }}
                 >
                   <SkipForward size={24} />
-                </Button>
-              </div>
-              <div className="flex items-center space-x-4">
-                <Volume2 size={24} />
-                <Slider
-                  value={[volume]}
-                  onValueChange={handleVolumeChange}
-                  max={1}
-                  step={0.01}
-                  className="w-full"
-                />
+                </motion.button>
               </div>
             </motion.div>
           )}
